@@ -11,6 +11,38 @@ from TftpPacketTypes import *
 from TftpPacketFactory import TftpPacketFactory
 from TftpContexts import TftpContextServer
 
+
+def drop_privileges(uid=None, gid=None):
+    # Derived from http://stackoverflow.com/a/2699996/119527
+    import pwd, grp
+
+    if os.getuid() != 0:
+        # We're not root so, like, whatever dude
+        return
+
+    # Default to nobody:nogroup
+    if uid == None:
+        uid = 'nobody'
+    if gid == None:
+        git = 'nogroup'
+
+    # Get the uid/gid from the name
+    if not isinstance(uid, int):
+        uid = pwd.getpwnam(uid).pw_uid
+    if not isinstance(gid, int):
+        gid = grp.getgrnam(gid).gr_gid
+
+    # Remove group privileges
+    os.setgroups([])
+
+    # Try setting the new uid/gid
+    os.setgid(gid)
+    os.setuid(uid)
+
+    # Ensure a very conservative umask
+    os.umask(077)
+
+
 class TftpServer(TftpSession):
     """This class implements a tftp server object. Run the listen() method to
     listen for client requests.  It takes two optional arguments. tftproot is
@@ -59,7 +91,9 @@ class TftpServer(TftpSession):
     def listen(self,
                listenip="",
                listenport=DEF_TFTP_PORT,
-               timeout=SOCK_TIMEOUT):
+               timeout=SOCK_TIMEOUT,
+               dropuid=None,
+               dropgid=None):
         """Start a server listening on the supplied interface and port. This
         defaults to INADDR_ANY (all interfaces) and UDP port 69. You can also
         supply a different socket timeout value, if desired."""
@@ -78,6 +112,10 @@ class TftpServer(TftpSession):
         except socket.error, err:
             # Reraise it for now.
             raise
+
+        if (dropuid != None) or (dropgid != None):
+            log.info("Dropping privileges to {0}:{1}".format(dropuid, dropgid))
+            drop_privileges(dropuid, dropgid)
 
         self.is_running.set()
 

@@ -27,6 +27,10 @@ def main():
                       action='store_true',
                       default=False,
                       help='upgrade logging from info to debug')
+    parser.add_option('--dropprivs',
+                      metavar='UID:GID',
+                      type='string',
+                      help='if given, drop privileges to UID:GID (default: nobody:nogroup)')
     options, args = parser.parse_args()
 
     if options.debug:
@@ -38,9 +42,25 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    uid = None
+    gid = None
+    if options.dropprivs:
+        parts = options.dropprivs.split(':')
+        if len(parts) != 2:
+            print 'Invalid UID:GID pair'
+            sys.exit(1)
+        uid, gid = parts
+
+        # Try to make integers
+        try:
+            uid = int(uid)
+            gid = int(gid)
+        except ValueError:
+            pass
+
     server = tftpy.TftpServer(options.root)
     try:
-        server.listen(options.ip, options.port)
+        server.listen(options.ip, options.port, dropuid=uid, dropgid=gid)
     except tftpy.TftpException, err:
         sys.stderr.write("%s\n" % str(err))
         sys.exit(1)
